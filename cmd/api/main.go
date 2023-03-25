@@ -4,7 +4,9 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"net"
 	"net/http"
+	"net/rpc"
 	"time"
 
 	"github.com/AradTenenbaum/loggerService/data"
@@ -48,9 +50,35 @@ func main() {
 		Models: data.New(client),
 	}
 
+	// register rpc server
+	err = rpc.Register(new(RPCServer))
+	// start rpc listener
+	go app.rpcListen()
+
+	// listen to gRPC requests
+	go app.gRPCListen()
+
 	// start web server
 	log.Println("Starting service on port", webPort)
 	app.serve()
+}
+
+func (app *Config) rpcListen() error {
+	log.Println("Starting RPC server on port", rpcPort)
+	listen, err := net.Listen("tcp", fmt.Sprintf("0.0.0.0:%s", rpcPort))
+	if err != nil {
+		return err
+	}
+
+	defer listen.Close()
+
+	for {
+		rpcConn, err := listen.Accept()
+		if err != nil {
+			continue
+		}
+		go rpc.ServeConn(rpcConn)
+	}
 }
 
 func (app *Config) serve() {
